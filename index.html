@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>福音本是神的大能 - 尋字高手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .grid-cell {
+            user-select: none;
+            touch-action: manipulation;
+        }
+        /* 自定義 12 欄網格 */
+        .grid-cols-12-custom {
+            display: grid;
+            grid-template-columns: repeat(12, minmax(0, 1fr));
+        }
+        /* 破關時的字體閃爍與大小縮放動畫 */
+        @keyframes pulse-scale {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 0 10px rgba(234, 179, 8, 0.8);
+            }
+            50% {
+                transform: scale(1.15);
+                box-shadow: 0 0 20px rgba(234, 179, 8, 1);
+            }
+        }
+        .animate-win-pulse {
+            animation: pulse-scale 0.8s infinite ease-in-out;
+            background-color: #eab308 !important; /* 金黃色閃爍 */
+            color: #ffffff !important;
+            z-index: 10;
+        }
+
+        /* 煙火動畫與粒子 */
+        @keyframes firework {
+            0% { transform: translate(var(--x), var(--initialY)); width: 0; height: 0; opacity: 1; }
+            50% { opacity: 1; }
+            100% { transform: translate(var(--x), var(--finalY)); width: 120px; height: 120px; opacity: 0; border-radius: 50%; }
+        }
+        .firework {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 0.5rem;
+            height: 0.5rem;
+            border-radius: 50%;
+            box-shadow: 
+                0 0 #fff, 0 0 #ff0, 0 0 #0ff, 0 0 #f0f, 0 0 #0f0,
+                0 0 #ff4500, 0 0 #ff1493, 0 0 #00ffff, 0 0 #adff2f, 0 0 #ffd700;
+            animation: firework 1.5s infinite ease-out;
+            pointer-events: none;
+            z-index: 20;
+        }
+    </style>
+</head>
+<body id="main-body" class="bg-slate-50 text-slate-800 min-h-screen flex flex-col items-center justify-center p-2 sm:p-4 overflow-hidden">
+
+    <!-- 誇張煙火容器 -->
+    <div id="fireworks-container" class="fixed inset-0 pointer-events-none hidden z-20 overflow-hidden">
+        <div class="firework" style="--x: -120px; --initialY: 100vh; --finalY: -150px; animation-delay: 0s;"></div>
+        <div class="firework" style="--x: 100px; --initialY: 100vh; --finalY: -180px; animation-delay: 0.3s;"></div>
+        <div class="firework" style="--x: -200px; --initialY: 100vh; --finalY: -80px; animation-delay: 0.6s;"></div>
+        <div class="firework" style="--x: 180px; --initialY: 100vh; --finalY: -120px; animation-delay: 0.9s;"></div>
+        <div class="firework" style="--x: 0px; --initialY: 100vh; --finalY: -220px; animation-delay: 0.4s;"></div>
+        <div class="firework" style="--x: -80px; --initialY: 100vh; --finalY: -200px; animation-delay: 0.7s;"></div>
+        <div class="firework" style="--x: 120px; --initialY: 100vh; --finalY: -100px; animation-delay: 1.1s;"></div>
+    </div>
+
+    <div class="max-w-xl w-full bg-white rounded-2xl shadow-xl p-4 sm:p-6 flex flex-col items-center relative overflow-visible z-30">
+        
+        <!-- 🏆 過關頂端橫幅 -->
+        <div id="win-banner" class="w-full bg-emerald-500 text-white px-4 py-2.5 rounded-xl mb-3 shadow-md flex items-center justify-between hidden transition-all duration-300">
+            <div class="flex items-center space-x-2 text-xs sm:text-sm font-bold">
+                <span>🎉</span>
+                <span>恭喜過關！耗時 <span id="final-time">00:00</span></span>
+            </div>
+            <button onclick="initGame()" class="bg-white text-emerald-600 hover:bg-emerald-50 px-3 py-1 rounded-lg text-xs font-bold transition shadow-sm cursor-pointer">
+                下一局 ➔
+            </button>
+        </div>
+
+        <!-- 遊戲主標題 Banner (遊戲中顯示，破關時隱藏) -->
+        <h1 id="game-title" class="text-xl sm:text-2xl font-bold text-slate-700 mb-3 text-center transition-all duration-300">✨ 福音本是神的大能 ✨</h1>
+
+        <!-- 遊戲棋盤容器 -->
+        <div class="overflow-x-auto w-full max-w-full flex justify-center pb-1 mb-3">
+            <div id="board" class="grid-cols-12-custom gap-1 sm:gap-1.5 bg-slate-200 p-2 rounded-xl shadow-inner select-none">
+                <!-- 動態生成 12x12 棋盤 -->
+            </div>
+        </div>
+
+        <!-- 控制列：計時器、提示按鈕 -->
+        <div class="flex flex-wrap items-center justify-between w-full max-w-md gap-3 px-1">
+            <div class="flex items-center space-x-2 bg-slate-100 px-3 py-1.5 rounded-lg">
+                <span class="text-xs sm:text-sm font-medium text-slate-600">⏱️ 時間:</span>
+                <span id="timer" class="text-base sm:text-lg font-bold text-indigo-600 font-mono">00:00</span>
+            </div>
+            <div>
+                <button id="hint-btn" onclick="showHint()" class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg font-medium shadow-sm transition active:scale-95 text-xs sm:text-sm flex items-center gap-1">
+                    💡 提示: 第一個字
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const ANSWER = "福音本是神的大能"; 
+        const CHARS = ['福', '音', '本', '是', '神', '的', '大', '能'];
+        const SIZE = 12; 
+
+        let grid = []; 
+        let answerPositions = []; 
+        let selectedCells = new Set(); 
+        let isGameWon = false;
+        
+        let timerInterval = null;
+        let secondsElapsed = 0;
+        let hintTimeout = null;
+
+        const DIRECTIONS = [
+            [0, 1],   // 左右
+            [0, -1],  // 右左
+            [1, 0],   // 上下
+            [-1, 0],  // 下上
+            [1, 1],   // 左上->右下
+            [1, -1],  // 左下->右上
+            [-1, 1],  // 右上->左下
+            [-1, -1]  // 右下->左上
+        ];
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            secondsElapsed = 0;
+            updateTimerDisplay();
+            timerInterval = setInterval(() => {
+                secondsElapsed++;
+                updateTimerDisplay();
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+        }
+
+        function updateTimerDisplay() {
+            const mins = String(Math.floor(secondsElapsed / 60)).padStart(2, '0');
+            const secs = String(secondsElapsed % 60).padStart(2, '0');
+            document.getElementById('timer').textContent = `${mins}:${secs}`;
+        }
+
+        function checkValidBoard(testGrid, correctPosSet) {
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    for (let [dr, dc] of DIRECTIONS) {
+                        let match = true;
+                        let coords = [];
+                        for (let i = 0; i < 8; i++) {
+                            let nr = r + dr * i;
+                            let nc = c + dc * i;
+                            if (nr < 0 || nr >= SIZE || nc < 0 || nc >= SIZE) {
+                                match = false;
+                                break;
+                            }
+                            coords.push(`${nr},${nc}`);
+                            if (testGrid[nr][nc] !== ANSWER[i]) {
+                                match = false;
+                                break;
+                            }
+                        }
+                        if (match) {
+                            let isExactOurAnswer = coords.every(coord => correctPosSet.has(coord));
+                            if (!isExactOurAnswer) {
+                                return false; 
+                            }
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+        function generateBoard() {
+            let maxAttempts = 1000;
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                let tempGrid = Array.from({ length: SIZE }, () => Array(SIZE).fill(''));
+                let correctPosSet = new Set();
+                let currentPosArr = [];
+
+                let r = Math.floor(Math.random() * SIZE);
+                let c = Math.floor(Math.random() * SIZE);
+                let [dr, dc] = DIRECTIONS[Math.floor(Math.random() * DIRECTIONS.length)];
+
+                if (r + dr * 7 >= 0 && r + dr * 7 < SIZE && c + dc * 7 >= 0 && c + dc * 7 < SIZE) {
+                    let tempCoords = [];
+                    for (let i = 0; i < 8; i++) {
+                        let nr = r + dr * i;
+                        let nc = c + dc * i;
+                        tempCoords.push({ r: nr, c: nc });
+                    }
+
+                    for (let i = 0; i < 8; i++) {
+                        tempGrid[tempCoords[i].r][tempCoords[i].c] = ANSWER[i];
+                        correctPosSet.add(`${tempCoords[i].r},${tempCoords[i].c}`);
+                    }
+                    currentPosArr = tempCoords;
+
+                    for (let i = 0; i < SIZE; i++) {
+                        for (let j = 0; j < SIZE; j++) {
+                            if (tempGrid[i][j] === '') {
+                                tempGrid[i][j] = CHARS[Math.floor(Math.random() * CHARS.length)];
+                            }
+                        }
+                    }
+
+                    if (checkValidBoard(tempGrid, correctPosSet)) {
+                        grid = tempGrid;
+                        answerPositions = currentPosArr;
+                        return true;
+                    }
+                }
+            }
+
+            // 備用防呆
+            let tempGrid = Array.from({ length: SIZE }, () => Array(SIZE).fill(''));
+            let correctPosSet = new Set();
+            let currentPosArr = [];
+            for (let i = 0; i < 8; i++) {
+                tempGrid[0][i] = ANSWER[i];
+                correctPosSet.add(`0,${i}`);
+                currentPosArr.push({ r: 0, c: i });
+            }
+            for (let i = 0; i < SIZE; i++) {
+                for (let j = 0; j < SIZE; j++) {
+                    if (tempGrid[i][j] === '') {
+                        tempGrid[i][j] = CHARS[Math.floor(Math.random() * CHARS.length)];
+                    }
+                }
+            }
+            grid = tempGrid;
+            answerPositions = currentPosArr;
+            return true;
+        }
+
+        function renderBoard() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+            
+            for (let r = 0; r < SIZE; r++) {
+                for (let c = 0; c < SIZE; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = `grid-cell w-6 h-6 sm:w-8 sm:h-8 md:w-9 md:h-9 flex items-center justify-center text-xs sm:text-sm md:text-base font-bold bg-white rounded cursor-pointer transition-all duration-150 shadow-sm hover:bg-indigo-50`;
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+                    cell.textContent = grid[r][c];
+
+                    const key = `${r},${c}`;
+                    if (selectedCells.has(key)) {
+                        cell.classList.remove('bg-white', 'hover:bg-indigo-50');
+                        cell.classList.add('bg-indigo-600', 'text-white', 'shadow-md');
+                    }
+
+                    cell.addEventListener('click', () => handleCellClick(r, c));
+                    boardEl.appendChild(cell);
+                }
+            }
+        }
+
+        function handleCellClick(r, c) {
+            if (isGameWon) return;
+
+            const key = `${r},${c}`;
+            if (selectedCells.has(key)) {
+                selectedCells.delete(key);
+            } else {
+                selectedCells.add(key);
+            }
+
+            renderBoard();
+            checkWinCondition();
+        }
+
+        function checkWinCondition() {
+            if (selectedCells.size !== 8) return;
+
+            let win = true;
+            for (let pos of answerPositions) {
+                if (!selectedCells.has(`${pos.r},${pos.c}`)) {
+                    win = false;
+                    break;
+                }
+            }
+
+            if (win) {
+                isGameWon = true;
+                stopTimer();
+                highlightAnswer();
+                triggerWinEffects();
+            }
+        }
+
+        function highlightAnswer() {
+            const boardEl = document.getElementById('board');
+            const cells = boardEl.children;
+            for (let i = 0; i < cells.length; i++) {
+                const cell = cells[i];
+                const r = parseInt(cell.dataset.row);
+                const c = parseInt(cell.dataset.col);
+                
+                if (answerPositions.some(p => p.r === r && p.c === c)) {
+                    // 正確答案：加上閃爍與縮放動畫特效，其他原本的字維持原狀
+                    cell.className = `grid-cell w-6 h-6 sm:w-8 sm:h-8 md:w-9 md:h-9 flex items-center justify-center text-xs sm:text-sm md:text-base font-bold rounded shadow-md animate-win-pulse`;
+                }
+            }
+        }
+
+        function showHint() {
+            if (isGameWon) return;
+            if (hintTimeout) clearTimeout(hintTimeout);
+
+            const firstPos = answerPositions[0];
+            const boardEl = document.getElementById('board');
+            const index = firstPos.r * SIZE + firstPos.c;
+            const targetCell = boardEl.children[index];
+
+            if (targetCell) {
+                targetCell.className = `grid-cell w-6 h-6 sm:w-8 sm:h-8 md:w-9 md:h-9 flex items-center justify-center text-xs sm:text-sm md:text-base font-bold bg-amber-400 text-white rounded shadow-lg scale-110 transition-all duration-200`;
+                
+                hintTimeout = setTimeout(() => {
+                    renderBoard(); 
+                }, 1000);
+            }
+        }
+
+        function triggerWinEffects() {
+            // 隱藏主標題 banner
+            const gameTitle = document.getElementById('game-title');
+            gameTitle.classList.add('hidden');
+
+            // 顯示誇張煙火
+            const fireworks = document.getElementById('fireworks-container');
+            fireworks.classList.remove('hidden');
+
+            // 顯示頂端過關橫幅
+            const banner = document.getElementById('win-banner');
+            const finalTimeEl = document.getElementById('final-time');
+            const mins = String(Math.floor(secondsElapsed / 60)).padStart(2, '0');
+            const secs = String(secondsElapsed % 60).padStart(2, '0');
+            finalTimeEl.textContent = `${mins}:${secs}`;
+            banner.classList.remove('hidden');
+        }
+
+        function initGame() {
+            isGameWon = false;
+            selectedCells.clear();
+            if (hintTimeout) clearTimeout(hintTimeout);
+
+            // 顯示主標題 banner
+            const gameTitle = document.getElementById('game-title');
+            gameTitle.classList.remove('hidden');
+
+            // 隱藏煙火與橫幅
+            const fireworks = document.getElementById('fireworks-container');
+            fireworks.classList.add('hidden');
+            const banner = document.getElementById('win-banner');
+            banner.classList.add('hidden');
+
+            generateBoard();
+            renderBoard();
+            startTimer();
+        }
+
+        window.onload = () => {
+            initGame();
+        };
+    </script>
+</body>
+</html>
